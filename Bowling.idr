@@ -16,8 +16,8 @@ lastFrameBonus (Pins first second) = ()
 
 data GameScore : Type where
      MkGameScore : Vect 9 FrameScore -> 
-                   (last : FrameScore) -> 
-                   (lastFrameBonus last) ->
+                   (lastFrame : FrameScore) -> 
+                   (lastFrameBonus lastFrame) ->
                    GameScore
 
 score : GameScore
@@ -26,6 +26,21 @@ score = MkGameScore
             Strike, Spare 9,  Strike,  Strike])
           Strike
           (9, 8)
+
+flat : GameScore -> List Nat
+flat (MkGameScore xs lastFrame bonus) = toList xs >>= flatFrame
+    where
+        flatFrame : FrameScore -> List Nat
+        flatFrame Strike = [10]
+        flatFrame (Spare x) = [finToNat x, ?second] -- second??
+        flatFrame (Pins first second) = [first, second]
+
+countHelp : List Nat -> Nat
+countHelp (x :: xs) = ?countHelp_rhs_2
+countHelp [] = ?countHelp_rhs_1
+
+countScore : GameScore -> Nat
+countScore score = countHelp (flat score)
 
 main : IO ()
 main = pure ()
