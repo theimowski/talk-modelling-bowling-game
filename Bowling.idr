@@ -60,6 +60,27 @@ countHelp [] = 0
 incorrectCountScore : GameScore -> Integer
 incorrectCountScore score = countHelp $ flat score
 
+lastFrameScore : (lastFrame : FrameScore) ->
+                 (lastFrameBonus : lastFrameBonus lastFrame) -> Nat
+lastFrameScore Strike (bonus1, bonus2) = 
+    10 + finToNat bonus1 + finToNat bonus2
+lastFrameScore (Spare x) bonus = 
+    10 + finToNat bonus
+lastFrameScore (Pins first second) () =
+    first + second
+
+frameX : Vect 9 FrameScore -> 
+         (f : FrameScore) -> 
+         lastFrameBonus f ->
+         Vect 9 (fs ** lastFrameBonus fs)
+
+frameScores : GameScore -> Vect 10 Nat
+frameScores (MkGameScore xs lastFrame lastFrameBonus) = 
+  (lastFrameScore lastFrame lastFrameBonus) 
+  :: ?frameScores_rhs_1
+
+countScore : GameScore -> Nat
+countScore score = sum (frameScores score)
 
 main : IO ()
 main = putStrLn $ show $ incorrectCountScore score
