@@ -27,20 +27,39 @@ score = MkGameScore
           Strike
           (9, 8)
 
-flat : GameScore -> List Nat
-flat (MkGameScore xs lastFrame bonus) = toList xs >>= flatFrame
+flatBonus : (lastFrame : FrameScore) -> 
+            (bonus : lastFrameBonus lastFrame) 
+            -> List Integer
+flatBonus Strike (a, b) = map finToInteger [a,b]
+flatBonus (Spare x) a = [finToInteger a]
+flatBonus (Pins first second) _ = []
+
+flat : GameScore -> List Integer
+flat (MkGameScore xs lastFrame bonus) = 
+    (toList xs >>= flatFrame) 
+    ++ (flatFrame lastFrame) 
+    ++ (flatBonus lastFrame bonus) 
     where
-        flatFrame : FrameScore -> List Nat
+        flatFrame : FrameScore -> List Integer
         flatFrame Strike = [10]
-        flatFrame (Spare x) = [finToNat x, ?second] -- second??
-        flatFrame (Pins first second) = [first, second]
+        flatFrame (Spare x) with (finToInteger x)
+          | y = [y, 10 - y]
+        flatFrame (Pins first second) = 
+          map toIntegerNat [first, second]
 
-countHelp : List Nat -> Nat
-countHelp (x :: xs) = ?countHelp_rhs_2
-countHelp [] = ?countHelp_rhs_1
+countHelp : List Integer -> Integer
+countHelp (10 :: y :: z :: xs) = 
+           10 + y + z + countHelp (y :: z :: xs)
+countHelp  (x :: y :: z :: xs) = frame + countHelp (z :: xs)
+  where 
+    frame : Integer
+    frame = if x + y == 10 then 10 + z else x + y
+countHelp (x :: xs) = x + countHelp xs
+countHelp [] = 0
 
-countScore : GameScore -> Nat
-countScore score = countHelp (flat score)
+incorrectCountScore : GameScore -> Integer
+incorrectCountScore score = countHelp $ flat score
+
 
 main : IO ()
-main = pure ()
+main = putStrLn $ show $ incorrectCountScore score
