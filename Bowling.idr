@@ -9,15 +9,15 @@ data FrameScore : Type where
      Pins : (first : Nat) -> (second : Nat) ->
             {auto prf : LT (first + second) 10} -> FrameScore
 
-lastFrameBonus : FrameScore -> Type
-lastFrameBonus Strike = (Fin 11, Fin 11)
-lastFrameBonus (Spare x) = (Fin 11)
-lastFrameBonus (Pins first second) = ()
+frameBonus : FrameScore -> Type
+frameBonus Strike = (Fin 11, Fin 11)
+frameBonus (Spare x) = (Fin 11)
+frameBonus (Pins first second) = ()
 
 data GameScore : Type where
      MkGameScore : Vect 9 FrameScore -> 
                    (lastFrame : FrameScore) -> 
-                   (lastFrameBonus lastFrame) ->
+                   (frameBonus lastFrame) ->
                    GameScore
 
 score : GameScore
@@ -28,7 +28,7 @@ score = MkGameScore
           (9, 8)
 
 flatBonus : (lastFrame : FrameScore) -> 
-            (bonus : lastFrameBonus lastFrame) 
+            (bonus : frameBonus lastFrame) 
             -> List Integer
 flatBonus Strike (a, b) = map finToInteger [a,b]
 flatBonus (Spare x) a = [finToInteger a]
@@ -60,8 +60,16 @@ countHelp [] = 0
 incorrectCountScore : GameScore -> Integer
 incorrectCountScore score = countHelp $ flat score
 
+triplewise : Vect (n + 2) elem -> 
+             --{auto prf : GTE n 1} ->
+             Vect n (elem, elem, elem)
+triplewise {n} xs = zip3 first second third where
+  first = take n xs
+  second = take n $ drop 1 xs
+  third = take n $ drop 2 xs
+
 frameScore : (lastFrame : FrameScore) ->
-                 (lastFrameBonus : lastFrameBonus lastFrame) -> Nat
+                 (frameBonus : frameBonus lastFrame) -> Nat
 frameScore Strike (bonus1, bonus2) = 
     10 + finToNat bonus1 + finToNat bonus2
 frameScore (Spare x) bonus = 
@@ -71,14 +79,16 @@ frameScore (Pins first second) () =
 
 frames : Vect 9 FrameScore -> 
          (f : FrameScore) -> 
-         lastFrameBonus f ->
-         Vect 9 (f' ** lastFrameBonus f')
+         frameBonus f ->
+         Vect 9 (f' ** frameBonus f')
+frames xs f x = map framesHelp xs where
+  framesHelp score = (score ** ?framesHelp)
 
 frameScores : GameScore -> Vect 10 Nat
-frameScores (MkGameScore xs lastFrame lastFrameBonus) = 
+frameScores (MkGameScore xs lastFrame frameBonus) = 
   map (\(x ** y) => frameScore x y) $ 
-        (frames xs lastFrame lastFrameBonus) ++ 
-        [(lastFrame ** lastFrameBonus)]
+        (frames xs lastFrame frameBonus) ++ 
+        [(lastFrame ** frameBonus)]
 
 countScore : GameScore -> Nat
 countScore score = sum (frameScores score)
