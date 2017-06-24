@@ -60,13 +60,14 @@ countHelp [] = 0
 incorrectCountScore : GameScore -> Integer
 incorrectCountScore score = countHelp $ flat score
 
-triplewise : Vect (n + 2) elem -> 
-             --{auto prf : GTE n 1} ->
-             Vect n (elem, elem, elem)
+vectCommutative : Vect (m + n) elem -> Vect (n + m) elem
+vectCommutative {m} {n} xs = rewrite sym (plusCommutative m n) in xs
+
+triplewise : Vect (n + 2) elem -> Vect n (elem, elem, elem)
 triplewise {n} xs = zip3 first second third where
-  first = take n xs
-  second = take n $ drop 1 xs
-  third = take n $ drop 2 xs
+  first  = take n xs
+  second = ?wut2
+  third  = drop 2 $ vectCommutative xs
 
 frameScore : (lastFrame : FrameScore) ->
                  (frameBonus : frameBonus lastFrame) -> Nat
@@ -82,7 +83,7 @@ frames : Vect 9 FrameScore ->
          frameBonus f ->
          Vect 9 (f' ** frameBonus f')
 frames xs f x = map framesHelp xs where
-  framesHelp score = (score ** ?framesHelp)
+  framesHelp score = (score ** ?wuuu)
 
 frameScores : GameScore -> Vect 10 Nat
 frameScores (MkGameScore xs lastFrame frameBonus) = 
