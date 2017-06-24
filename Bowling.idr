@@ -63,10 +63,13 @@ incorrectCountScore score = countHelp $ flat score
 vectCommutative : Vect (m + n) elem -> Vect (n + m) elem
 vectCommutative {m} {n} xs = rewrite sym (plusCommutative m n) in xs
 
+middle : Vect (2 + n) elem -> Vect n elem
+middle (x :: xs) = init xs
+
 triplewise : Vect (n + 2) elem -> Vect n (elem, elem, elem)
 triplewise {n} xs = zip3 first second third where
   first  = take n xs
-  second = ?wut2
+  second = middle $ vectCommutative xs
   third  = drop 2 $ vectCommutative xs
 
 frameScore : (lastFrame : FrameScore) ->
