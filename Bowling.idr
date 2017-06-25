@@ -9,15 +9,15 @@ data FrameScore : Type where
      Pins : (first : Nat) -> (second : Nat) ->
             {auto prf : LT (first + second) 10} -> FrameScore
 
-frameBonus : FrameScore -> Type
-frameBonus Strike = (Fin 11, Fin 11)
-frameBonus (Spare x) = (Fin 11)
-frameBonus (Pins first second) = ()
+bonus : FrameScore -> Type
+bonus Strike = (Fin 11, Fin 11)
+bonus (Spare x) = (Fin 11)
+bonus (Pins first second) = ()
 
 data GameScore : Type where
      MkGameScore : Vect 9 FrameScore -> 
                    (lastFrame : FrameScore) -> 
-                   (frameBonus lastFrame) ->
+                   (bonus lastFrame) ->
                    GameScore
 
 score : GameScore
@@ -27,53 +27,20 @@ score = MkGameScore
           Strike
           (9, 8)
 
-flatBonus : (lastFrame : FrameScore) -> 
-            (bonus : frameBonus lastFrame) 
-            -> List Integer
-flatBonus Strike (a, b) = map finToInteger [a,b]
-flatBonus (Spare x) a = [finToInteger a]
-flatBonus (Pins first second) _ = []
-
-flat : GameScore -> List Integer
-flat (MkGameScore xs lastFrame bonus) = 
-    (toList xs >>= flatFrame) 
-    ++ (flatFrame lastFrame) 
-    ++ (flatBonus lastFrame bonus) 
-    where
-        flatFrame : FrameScore -> List Integer
-        flatFrame Strike = [10]
-        flatFrame (Spare x) with (finToInteger x)
-          | y = [y, 10 - y]
-        flatFrame (Pins first second) = 
-          map toIntegerNat [first, second]
-
-countHelp : List Integer -> Integer
-countHelp (10 :: y :: z :: xs) = 
-           10 + y + z + countHelp (y :: z :: xs)
-countHelp  (x :: y :: z :: xs) = frame + countHelp (z :: xs)
-  where 
-    frame : Integer
-    frame = if x + y == 10 then 10 + z else x + y
-countHelp (x :: xs) = x + countHelp xs
-countHelp [] = 0
-
-incorrectCountScore : GameScore -> Integer
-incorrectCountScore score = countHelp $ flat score
-
 vectCommutative : Vect (m + n) elem -> Vect (n + m) elem
 vectCommutative {m} {n} xs = rewrite sym (plusCommutative m n) in xs
 
 middle : Vect (2 + n) elem -> Vect n elem
 middle (x :: xs) = init xs
 
-triplewise : Vect (n + 2) elem -> Vect n (elem, elem, elem)
+triplewise : Vect (2 + n) elem -> Vect n (elem, elem, elem)
 triplewise {n} xs = zip3 first second third where
-  first  = take n xs
-  second = middle $ vectCommutative xs
-  third  = drop 2 $ vectCommutative xs
+  first  = take n $ vectCommutative xs
+  second = middle xs
+  third  = drop 2 xs
 
-frameScore : (lastFrame : FrameScore) ->
-                 (frameBonus : frameBonus lastFrame) -> Nat
+frameScore : (frame : FrameScore) ->
+             (bonus : bonus frame) -> Nat
 frameScore Strike (bonus1, bonus2) = 
     10 + finToNat bonus1 + finToNat bonus2
 frameScore (Spare x) bonus = 
@@ -81,18 +48,26 @@ frameScore (Spare x) bonus =
 frameScore (Pins first second) () =
     first + second
 
-frames : Vect 9 FrameScore -> 
-         (f : FrameScore) -> 
-         frameBonus f ->
-         Vect 9 (f' ** frameBonus f')
-frames xs f x = map framesHelp xs where
-  framesHelp score = (score ** ?wuuu)
+nextThrows : FrameScore -> FrameScore -> (Fin 11, Fin 11)
+nextThrows Strike Strike = (10, 10)
+nextThrows Strike (Spare x) = (10, weaken x)
+nextThrows Strike (Pins first _) = (10, ?nextThrows_rhs_6)
+nextThrows (Spare x) _ = (weaken x, ?nextThrows_rhs_2)
+nextThrows (Pins first second) _ = ?nextThrows_rhs_3
+
+frames : GameScore -> Vect 10 (f' ** bonus f')
+frames (MkGameScore xs f x) = 
+  map framesHelp (triplewise (xs ++ [f])) ++ ?rest 
+where
+  framesHelp (Strike,s2,s3) with (nextThrows s2 s3)
+    | (t1, t2) = (Strike ** (t1, t2))
+  framesHelp (Spare x,s2,s3) with (nextThrows s2 s3)
+    | (t, _) = (Spare x ** t)
+  framesHelp (Pins x y,_,_) = (Pins x y ** ())
 
 frameScores : GameScore -> Vect 10 Nat
-frameScores (MkGameScore xs lastFrame frameBonus) = 
-  map (\(x ** y) => frameScore x y) $ 
-        (frames xs lastFrame frameBonus) ++ 
-        [(lastFrame ** frameBonus)]
+frameScores score = 
+  map (\(x ** y) => frameScore x y) $ frames score
 
 countScore : GameScore -> Nat
 countScore score = sum (frameScores score)
