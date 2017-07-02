@@ -5,7 +5,7 @@ import Data.Vect
 
 data FrameScore : Type where
      Strike : FrameScore
-     Spare : Fin 10 -> FrameScore
+     Spare : (first : Fin 10) -> FrameScore
      Pins : (first : Nat) -> 
             (second : Nat) ->
             {auto prf : LT (first + second) 10} -> 
@@ -49,39 +49,52 @@ frameScore (Spare x) bonus =
 frameScore (Pins first second) () =
     first + second
 
-nextThrows : FrameScore -> FrameScore -> (Fin 11, Fin 11)
-nextThrows Strike Strike = (10, 10)
-nextThrows Strike (Spare x) = (10, weaken x)
-nextThrows Strike (Pins first _) = (10, ?nextThrows_rhs_6)
-nextThrows (Spare x) _ = (weaken x, ?nextThrows_rhs_2)
-nextThrows (Pins first second) _ = ?nextThrows_rhs_3
+firstThrow : FrameScore -> Fin 11
+firstThrow Strike = 10
+firstThrow (Spare x) = weaken x
+firstThrow (Pins first _) = ?firstThrow_rhs
+
+secondThrow : FrameScore -> Maybe (Fin 11)
+secondThrow Strike = Nothing
+secondThrow (Spare x) = Just ?secondThrow_rhs_1
+secondThrow (Pins first second) = Just ?secondThrow_rhs_2
+
+twoThrows : FrameScore -> FrameScore -> (Fin 11, Fin 11)
+twoThrows f1 f2 with (firstThrow f1, secondThrow f1, firstThrow f2)
+  | (first, Just second, _) = (first, second)
+  | (first, Nothing, second) = (first, second)
 
 initBonus : (current : FrameScore) ->
             (next : FrameScore) ->
             (third : FrameScore) ->
             bonus current
+initBonus Strike next third = twoThrows next third
+initBonus (Spare _) next _ = firstThrow next
+initBonus (Pins _ _) _ _ = ()
+
+throws : FrameScore -> Type
+throws Strike = Fin 11
+throws _ = (Fin 11, Fin 11)
+
+twoBonus : (frame : FrameScore) -> 
+           throws frame ->
+           bonus frame -> 
+           (Fin 11, Fin 11)
+twoBonus frame x y = ?twoBonus_rhs
 
 ninthBonus : (ninth : FrameScore) -> 
              (tenth : FrameScore) -> 
-             (tenthBonus : bonus tenth) -> 
+             bonus tenth -> 
              bonus ninth
-ninthBonus Strike Strike (b1, _) = (10, b1)
-ninthBonus Strike (Spare x) _ = (weaken x, ?ninthBonus_rhs_5)
-ninthBonus Strike (Pins first second) _ = ?ninthBonus_rhs_6
-ninthBonus (Spare _) Strike _ = 10
-ninthBonus (Spare _) (Spare x) _ = weaken x
-ninthBonus (Spare _) (Pins first _) _ = ?ninthBonus_rhs_3
+ninthBonus Strike tenth tenthBonus = twoBonus tenth ?x tenthBonus
+ninthBonus (Spare _) tenth _ = firstThrow tenth
 ninthBonus (Pins _ _) _ _ = ()
 
 frames : GameScore -> Vect 10 (f' ** bonus f')
 frames (MkGameScore xs tenth tenthBonus) = 
-  map framesHelp (triplewise (xs ++ [tenth])) ++ rest
+  map (\(s1,s2,s3) => (s1 ** initBonus s1 s2 s3))
+      (triplewise (xs ++ [tenth])) ++ rest
 where
-  framesHelp (Strike,s2,s3) with (nextThrows s2 s3)
-    | (t1, t2) = (Strike ** (t1, t2))
-  framesHelp (Spare x,s2,s3) with (nextThrows s2 s3)
-    | (t, _) = (Spare x ** t)
-  framesHelp (Pins x y,_,_) = (Pins x y ** ())
   ninth : FrameScore 
   ninth = index 8 xs
   ninthB : bonus ninth
