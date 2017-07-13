@@ -3,80 +3,65 @@ import Data.Vect
 
 %default total
 
-data FrameScore : Type where
-     Strike : FrameScore
-     Spare : (first : Fin 10) -> FrameScore
+data Frame : Type where
+     Strike : Frame
+     Spare : (first : Fin 10) -> Frame
      Pins : (first : Nat) -> 
             (second : Nat) ->
             {auto prf : LT (first + second) 10} -> 
-            FrameScore
+            Frame
 
-bonus : FrameScore -> Type
+bonus : Frame -> Type
 bonus Strike = (Fin 11, Fin 11)
-bonus (Spare x) = (Fin 11)
-bonus (Pins first second) = ()
+bonus (Spare _) = (Fin 11)
+bonus (Pins _ _) = ()
 
-data GameScore : Type where
-     MkGameScore : Vect 9 FrameScore -> 
-                   (lastFrame : FrameScore) -> 
-                   (bonus lastFrame) ->
-                   GameScore
+FrameAndBonus : Type
+FrameAndBonus = (frame : Frame ** bonus frame)
 
-vectCommutative : Vect (m + n) elem -> Vect (n + m) elem
-vectCommutative {m} {n} xs = rewrite sym (plusCommutative m n) in xs
+data GameScore : Type where 
+  MkGameScore : Vect 9 Frame -> FrameAndBonus -> GameScore
 
-middle : Vect (2 + n) elem -> Vect n elem
-middle (x :: xs) = init xs
+score : FrameAndBonus -> Nat
+score (Strike ** (b1, b2)) = 10 + finToNat b1 + finToNat b2
+score ((Spare _) ** b1) = 10 + finToNat b1
+score ((Pins first second) ** ()) = first + second
 
-triplewise : Vect (2 + n) elem -> Vect n (elem, elem, elem)
-triplewise {n} xs = zip3 first second third where
-  first  = take n $ vectCommutative xs
-  second = middle xs
-  third  = drop 2 xs
-
-frameScore : (frame : FrameScore) -> (bonus : bonus frame) -> Nat
-frameScore Strike (bonus1, bonus2) = 
-    10 + finToNat bonus1 + finToNat bonus2
-frameScore (Spare x) bonus = 
-    10 + finToNat bonus
-frameScore (Pins first second) () =
-    first + second
-
-firstThrow : FrameScore -> Fin 11
-firstThrow Strike = 10
-firstThrow (Spare x) = weaken x
-firstThrow (Pins first _) = restrict 10 (toIntegerNat first)
-
-secondThrow : FrameScore -> Maybe (Fin 11)
-secondThrow Strike = Nothing
-secondThrow (Spare x) = Just $ restrict 10 (10 - finToInteger x)
-secondThrow (Pins _ second) = Just $ restrict 10 (toIntegerNat second)
-
-throws : FrameScore -> Type
+throws : Frame -> Type
 throws Strike = Fin 11
 throws _ = (Fin 11, Fin 11)
 
-throwsHelp : (frame : FrameScore) -> throws frame
+throwsHelp : (frame : Frame) -> throws frame
 throwsHelp Strike = 10
 throwsHelp (Spare first) = 
   (weaken first, restrict 10 (10 - finToInteger first))
 throwsHelp (Pins first second) =
   (restrict 10 (toIntegerNat first), restrict 10 (toIntegerNat second))
 
-twoThrows : FrameScore -> FrameScore -> (Fin 11, Fin 11)
-twoThrows f1 f2 with (firstThrow f1, secondThrow f1, firstThrow f2)
-  | (first, Just second, _) = (first, second)
-  | (first, Nothing, second) = (first, second)
+firstThrow : Frame -> Fin 11
+firstThrow Strike = throwsHelp Strike
+firstThrow (Spare first) = fst $ throwsHelp (Spare first)
+firstThrow (Pins first second) = fst $ throwsHelp (Pins first second)
 
-initBonus : (current : FrameScore) ->
-            (next : FrameScore) ->
-            (third : FrameScore) ->
+twoThrows : (f1 : Frame ** throws f1) -> 
+            (f2 : Frame ** throws f2) -> 
+            (Fin 11, Fin 11)
+twoThrows (Strike ** t1) (Strike ** t2) = (t1, t2)
+twoThrows (Strike ** t1) (Spare _ ** (t2,_)) = (t1, t2)
+twoThrows (Strike ** t1) (Pins _ _ ** (t2,_)) = (t1, t2)
+twoThrows (Spare _ ** (t1,t2)) _ = (t1,t2)
+twoThrows (Pins _ _ ** (t1,t2)) _ = (t1,t2)
+
+initBonus : (current : Frame) ->
+            (next : Frame) ->
+            (third : Frame) ->
             bonus current
-initBonus Strike next third = twoThrows next third
+initBonus Strike next third = 
+  twoThrows (next ** throwsHelp next) (third ** throwsHelp third)
 initBonus (Spare _) next _ = firstThrow next
 initBonus (Pins _ _) _ _ = ()
 
-twoBonus : (frame : FrameScore) -> 
+twoBonus : (frame : Frame) -> 
            throws frame ->
            bonus frame -> 
            (Fin 11, Fin 11)
@@ -84,8 +69,8 @@ twoBonus Strike t1 (t2,_) = (t1,t2)
 twoBonus (Spare _) (t1,t2) _ = (t1,t2)
 twoBonus (Pins _ _) (t1,t2) _ = (t1,t2)
 
-ninthBonus : (ninth : FrameScore) -> 
-             (tenth : FrameScore) -> 
+ninthBonus : (ninth : Frame) -> 
+             (tenth : Frame) -> 
              bonus tenth -> 
              bonus ninth
 ninthBonus Strike tenth tenthBonus =
@@ -93,30 +78,35 @@ ninthBonus Strike tenth tenthBonus =
 ninthBonus (Spare _) tenth _ = firstThrow tenth
 ninthBonus (Pins _ _) _ _ = ()
 
-frames : GameScore -> Vect 10 (f' ** bonus f')
-frames (MkGameScore xs tenth tenthBonus) = 
-  map (\(s1,s2,s3) => (s1 ** initBonus s1 s2 s3))
-      (triplewise (xs ++ [tenth])) ++ rest
+vectCommutative : Vect (m + n) elem -> Vect (n + m) elem
+vectCommutative {m} {n} xs = rewrite sym (plusCommutative m n) in xs
+
+triplewise : Vect (2 + n) elem -> Vect n (elem, elem, elem)
+triplewise {n} xs = zip3 first second third where
+  first  = take n $ vectCommutative xs
+  second = let (_ :: tail) = xs in init tail
+  third  = drop 2 xs
+
+frames : GameScore -> Vect 10 FrameAndBonus
+frames (MkGameScore frames (tenth ** tenthBonus)) = 
+  map (\(f1,f2,f3) => (f1 ** initBonus f1 f2 f3))
+      (triplewise (frames ++ [tenth])) 
+  ++ rest
 where
-  ninth : FrameScore 
-  ninth = index 8 xs
+  ninth : Frame 
+  ninth = last frames
   ninthB : bonus ninth
   ninthB = ninthBonus ninth tenth tenthBonus
   rest = [(ninth ** ninthB), (tenth ** tenthBonus)]
 
-frameScores : GameScore -> Vect 10 Nat
-frameScores score = 
-  map (\(x ** y) => frameScore x y) $ frames score
+points : GameScore -> Nat
+points = sum . map score . frames
 
-countScore : GameScore -> Nat
-countScore score = sum (frameScores score)
-
-score : GameScore
-score = MkGameScore 
+sampleGame : GameScore
+sampleGame = MkGameScore 
           ([Strike, Pins 2 7, Spare 2, Strike, Strike,
             Strike, Spare 9,  Strike,  Strike])
-          Strike
-          (9, 8)
+          (Strike ** (9, 8))
 
 main : IO ()
-main = putStrLn $ show $ countScore score
+main = putStrLn $ show $ points sampleGame
