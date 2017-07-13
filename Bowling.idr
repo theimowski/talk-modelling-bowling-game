@@ -22,13 +22,6 @@ data GameScore : Type where
                    (bonus lastFrame) ->
                    GameScore
 
-score : GameScore
-score = MkGameScore 
-          ([Strike, Pins 2 7, Spare 2, Strike, Strike,
-            Strike, Spare 9,  Strike,  Strike])
-          Strike
-          (9, 8)
-
 vectCommutative : Vect (m + n) elem -> Vect (n + m) elem
 vectCommutative {m} {n} xs = rewrite sym (plusCommutative m n) in xs
 
@@ -52,12 +45,23 @@ frameScore (Pins first second) () =
 firstThrow : FrameScore -> Fin 11
 firstThrow Strike = 10
 firstThrow (Spare x) = weaken x
-firstThrow (Pins first _) = ?firstThrow_rhs
+firstThrow (Pins first _) = restrict 10 (toIntegerNat first)
 
 secondThrow : FrameScore -> Maybe (Fin 11)
 secondThrow Strike = Nothing
-secondThrow (Spare x) = Just ?secondThrow_rhs_1
-secondThrow (Pins first second) = Just ?secondThrow_rhs_2
+secondThrow (Spare x) = Just $ restrict 10 (10 - finToInteger x)
+secondThrow (Pins _ second) = Just $ restrict 10 (toIntegerNat second)
+
+throws : FrameScore -> Type
+throws Strike = Fin 11
+throws _ = (Fin 11, Fin 11)
+
+throwsHelp : (frame : FrameScore) -> throws frame
+throwsHelp Strike = 10
+throwsHelp (Spare first) = 
+  (weaken first, restrict 10 (10 - finToInteger first))
+throwsHelp (Pins first second) =
+  (restrict 10 (toIntegerNat first), restrict 10 (toIntegerNat second))
 
 twoThrows : FrameScore -> FrameScore -> (Fin 11, Fin 11)
 twoThrows f1 f2 with (firstThrow f1, secondThrow f1, firstThrow f2)
@@ -72,21 +76,20 @@ initBonus Strike next third = twoThrows next third
 initBonus (Spare _) next _ = firstThrow next
 initBonus (Pins _ _) _ _ = ()
 
-throws : FrameScore -> Type
-throws Strike = Fin 11
-throws _ = (Fin 11, Fin 11)
-
 twoBonus : (frame : FrameScore) -> 
            throws frame ->
            bonus frame -> 
            (Fin 11, Fin 11)
-twoBonus frame x y = ?twoBonus_rhs
+twoBonus Strike t1 (t2,_) = (t1,t2)
+twoBonus (Spare _) (t1,t2) _ = (t1,t2)
+twoBonus (Pins _ _) (t1,t2) _ = (t1,t2)
 
 ninthBonus : (ninth : FrameScore) -> 
              (tenth : FrameScore) -> 
              bonus tenth -> 
              bonus ninth
-ninthBonus Strike tenth tenthBonus = twoBonus tenth ?x tenthBonus
+ninthBonus Strike tenth tenthBonus =
+   twoBonus tenth (throwsHelp tenth) tenthBonus
 ninthBonus (Spare _) tenth _ = firstThrow tenth
 ninthBonus (Pins _ _) _ _ = ()
 
@@ -108,5 +111,12 @@ frameScores score =
 countScore : GameScore -> Nat
 countScore score = sum (frameScores score)
 
+score : GameScore
+score = MkGameScore 
+          ([Strike, Pins 2 7, Spare 2, Strike, Strike,
+            Strike, Spare 9,  Strike,  Strike])
+          Strike
+          (9, 8)
+
 main : IO ()
-main = putStrLn $ show $ frameScore (Strike) (5, 10)
+main = putStrLn $ show $ countScore score
